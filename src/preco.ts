@@ -11,3 +11,9 @@ export function valorDoIngresso(precoBase: number): (tipo: TipoIngresso) => numb
     return Math.round(valor * 100) / 100;
   };
 }
+
+// Outra fábrica: recebe o percentual da taxa e devolve uma função que soma a
+// taxa a um valor. O arredondamento acontece DENTRO da função devolvida.
+export function aplicarTaxa(percentual: number): (valor: number) => number {
+  return (valor) => Math.round(valor * (1 + percentual) * 100) / 100;
+}
