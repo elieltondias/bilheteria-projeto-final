@@ -32,3 +32,10 @@ export function montarIngressos(
     return { nome: pessoa.nome, poltrona: pessoa.poltrona, tipo, valor: valor(tipo) };
   });
 }
+
+// Soma os valores com reduce e aplica a taxa de serviço de 10% chamando a
+// fábrica aplicarTaxa. Não muta a lista recebida.
+export function calcularTotal(ingressos: readonly Ingresso[]): number {
+  const soma = ingressos.reduce((acumulado, ingresso) => acumulado + ingresso.valor, 0);
+  return aplicarTaxa(0.1)(soma);
+}
