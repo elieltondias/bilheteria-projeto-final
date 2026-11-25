@@ -2,7 +2,7 @@
 // as poltronas são marcadas antes do await do pagamento, então enquanto um
 // pedido espera a operadora, o Node atende os outros.
 
-import { DadosInvalidosErro, NaoEncontradoErro } from "./dominio.ts";
+import { DadosInvalidosErro, NaoEncontradoErro, PagamentoErro } from "./dominio.ts";
 import type { Evento } from "./dominio.ts";
 import { calcularTotal, montarIngressos } from "./preco.ts";
 import { direitoAMeia } from "./regras.ts";
@@ -46,7 +46,14 @@ export class Bilheteria {
     const total = calcularTotal(ingressos);
 
     // 4. Cobra na operadora. Outros pedidos seguem rodando enquanto este espera.
-    await this.#pagar(total);
+    //    Pagamento recusado: devolve as poltronas e responde 502 — ninguém
+    //    fica cobrado sem levar o ingresso.
+    try {
+      await this.#pagar(total);
+    } catch (erro) {
+      evento.liberar(poltronas);
+      throw new PagamentoErro(`pagamento recusado: ${(erro as Error).message}`);
+    }
 
     // 5. Comprovante com reservaId novo a cada compra.
     return {
