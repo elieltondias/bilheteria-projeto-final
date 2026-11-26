@@ -9,6 +9,17 @@ import { direitoAMeia } from "./regras.ts";
 import type { Pagamento } from "./pagamento.ts";
 import type { Comprovante, ConfigBilheteria, EventoInfo, Pedido } from "./tipos.ts";
 
+// Tempo limite da operadora: o Promise.race devolve quem terminar primeiro,
+// a cobrança ou o relógio, que rejeita depois de ms milissegundos. O finally
+// desliga o relógio quando a cobrança termina antes.
+function comTempoLimite<T>(promessa: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limite = new Promise<never>((_, rejeitar) => {
+    timer = setTimeout(() => rejeitar(new Error("tempo esgotado")), ms);
+  });
+  return Promise.race([promessa, limite]).finally(() => clearTimeout(timer));
+}
+
 export class Bilheteria {
   #eventos: Evento[];
   #pagar: Pagamento;
@@ -45,11 +56,12 @@ export class Bilheteria {
     const ingressos = montarIngressos(evento.preco, pedido.ingressos, direitoAMeia);
     const total = calcularTotal(ingressos);
 
-    // 4. Cobra na operadora. Outros pedidos seguem rodando enquanto este espera.
-    //    Pagamento recusado: devolve as poltronas e responde 502 — ninguém
-    //    fica cobrado sem levar o ingresso.
+    // 4. Cobra a operadora com tempo limite: se ela recusar OU travar, o
+    //    comTempoLimite rejeita, as poltronas são devolvidas e o cliente
+    //    recebe 502 — ninguém fica cobrado sem levar o ingresso, e nenhum
+    //    pedido fica preso para sempre esperando uma operadora travada.
     try {
-      await this.#pagar(total);
+      await comTempoLimite(this.#pagar(total), this.#limitePagamentoMs);
     } catch (erro) {
       evento.liberar(poltronas);
       throw new PagamentoErro(`pagamento recusado: ${(erro as Error).message}`);
