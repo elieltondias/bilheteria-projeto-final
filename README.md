@@ -96,9 +96,20 @@ curl -X POST localhost:3000/reservas -H 'Content-Type: application/json' \
 
 | Cenário | Pedidos | Tempo (ms) | Vendidos | Poltrona ocupada | Falha de pagamento |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| Padrão (`main.ts`) | 200 | | | | |
+| Padrão (`main.ts`) | 200 | 165 | 87 | 100 | 13 |
 
 O bench ocupa as poltronas do evento 1: para rodar de novo, parem o `npm start` (Ctrl+C) e subam outra
 vez.
 
 O que os números mostram:
+
+- **100 recusados com 409 (poltrona ocupada):** o evento 1 tem 100 poltronas e cada uma disputada por
+  dois pedidos — o segundo pedido de **cada** poltrona foi recusado. Nenhuma poltrona foi vendida duas
+  vezes, que é a regra número um do projeto.
+- **87 vendidos + 13 falhas de pagamento = 100:** os 100 primeiros pedidos (um por poltrona) passaram
+  pela operadora; 13 deles caíram nos ~10% de `taxaDeFalha` configurados no `main.ts` e receberam 502.
+  Como o pagamento falhou, as poltronas desses 13 **voltaram para a venda** (`disponivel: 13` no fim):
+  ninguém ficou cobrado sem levar o ingresso.
+- **165 ms para 200 pedidos** (1213 pedidos/s): cada cobrança demora 80 ms sozinha, então se os pedidos
+  fosse um a um levariam 100 × 80 ms = 8 segundos. Os pedidos não esperam uns pelos outros: enquanto
+  um espera no `await` do pagamento, o Node atende os outros.
